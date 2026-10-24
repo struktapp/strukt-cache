@@ -30,21 +30,24 @@
             "type": "path",
             "url": "../base",
             "options": {
-                "symlink": false
+                "symlink": false,
+                "versions": { "strukt/base": "dev-main" }
             }
         },
         {
             "type": "path",
             "url": "../commons",
             "options": {
-                "symlink": false
+                "symlink": false,
+                "versions": { "strukt/commons": "dev-main" }
             }
         },
         {
             "type": "path",
             "url": "../fs",
             "options": {
-                "symlink": false
+                "symlink": false,
+                "versions": { "strukt/fs": "dev-main" }
             }
         }
     ],

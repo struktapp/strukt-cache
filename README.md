@@ -369,15 +369,44 @@ Reports whether the most recent save was accepted by Memcached.
 
 ## Configuration and driver registration
 
-The package registers the cache driver interface and implementations through
-the Strukt application registry:
+The package registers the cache driver interface and the built-in drivers on
+the shared `app()` container:
 
 ```php
-app('cache');       // default registered driver
-app('cache.*');     // all registered drivers
-app('cache.mem');   // Memory class
-app('cache.fs');    // filesystem class
-app('cache.memc');  // Memcached class
+alias('cache', CacheDriverInterface::class);
+
+app('cache.mem');   // Strukt\Cache\Driver\Memory
+app('cache.fs');    // Strukt\Cache\Driver\Fs
+app('cache.memc');  // Strukt\Cache\Driver\MemCached
+```
+
+Register a custom driver by binding its class on the container; the Cache
+facade resolves it by name:
+
+```php
+app()->set('cache.redis', static fn (): string => RedisDriver::class);
+
+$cache = new Cache('sessions', 'redis');
+```
+
+Short names `mem`, `memory`, `fs`, `memc`, and `memcached` are bound by
+default. A driver name that is not bound and is not a driver class is rejected
+with an `InvalidArgumentException`.
+
+The container also exposes a default cache service so consumers can depend on
+the abstraction (dependency inversion):
+
+```php
+app(CacheDriverInterface::class); // default driver instance
+app('cache');                     // default Cache facade
+```
+
+The default driver is `Memory` and the default namespace is `default`; override
+them with configuration:
+
+```php
+config('cache.default', 'fs');    // short name or driver class
+config('cache.namespace', 'app');
 ```
 
 Set cache.disable to true to force the Cache facade to use memory storage:

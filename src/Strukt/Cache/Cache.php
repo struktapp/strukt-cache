@@ -29,8 +29,7 @@ class Cache
      */
     public function __construct(string $filename, string $driver = Fs::class)
     {
-        $driver = $this->resolveDriver($driver);
-        $this->cache = new $driver($filename);
+        $this->cache = $this->makeDriver($filename, $driver);
     }
 
     /**
@@ -125,9 +124,49 @@ class Cache
     }
 
     /**
-     * Resolves a driver class or short driver alias.
+     * Builds the configured cache driver through the app() container.
      *
-     * @param string $driver Driver class or alias.
+     * @param string $filename Cache namespace or file name.
+     * @param string $driver Driver class or registered driver name.
+     * @return CacheDriverInterface Active cache driver.
+     *
+     * @throws \InvalidArgumentException When the driver is not a cache driver.
+     * @throws \RuntimeException When the selected driver cannot initialize.
+     */
+    private function makeDriver(string $filename, string $driver): CacheDriverInterface
+    {
+        $class = $this->resolveDriver($driver);
+
+        if (function_exists('config')) {
+            try {
+                $disabled = config('cache.disable');
+                if ($disabled === true || $disabled === 'true' || $disabled === 1 || $disabled === '1') {
+                    $class = Memory::class;
+                }
+            } catch (\Throwable) {
+                // Configuration is optional; retain the requested driver.
+            }
+        }
+
+        if (function_exists('app')) {
+            $constructor = (new \ReflectionClass($class))->getConstructor();
+            $parameter = $constructor?->getParameters()[0] ?? null;
+            $parameters = $parameter !== null ? [$parameter->getName() => $filename] : [];
+
+            return app($class, $parameters);
+        }
+
+        return new $class($filename);
+    }
+
+    /**
+     * Resolves a driver class or registered driver name to a class name.
+     *
+     * Short names such as mem, fs, and memc are registered as app() container
+     * bindings (see src/helpers.php); any other value must be a cache driver
+     * class.
+     *
+     * @param string $driver Driver class or registered driver name.
      * @return class-string<CacheDriverInterface> Resolved driver class.
      *
      * @throws \InvalidArgumentException When the driver is not a cache driver.
@@ -135,35 +174,23 @@ class Cache
     private function resolveDriver(string $driver): string
     {
         $driver = trim($driver);
-        $aliases = [
-            'mem' => Memory::class,
-            'memory' => Memory::class,
-            'fs' => Fs::class,
-            'memc' => Driver\MemCached::class,
-            'memcached' => Driver\MemCached::class,
-        ];
-        $resolved = $aliases[$driver] ?? $driver;
 
-        if (!class_exists($resolved) && function_exists('app')) {
-            $registered = app('cache.' . $driver);
-            $resolved = is_string($registered) ? $registered : $resolved;
-        }
+        if (function_exists('app')) {
+            $id = 'cache.' . $driver;
+            $container = app();
 
-        if (!class_exists($resolved) || !is_a($resolved, CacheDriverInterface::class, true)) {
-            throw new \InvalidArgumentException(sprintf('Unknown cache driver [%s].', $driver));
-        }
-
-        if (function_exists('config')) {
-            try {
-                $disabled = config('cache.disable');
-                if ($disabled === true || $disabled === 'true' || $disabled === 1 || $disabled === '1') {
-                    return Memory::class;
+            if ($container->has($id)) {
+                $bound = $container->get($id);
+                if (is_string($bound)) {
+                    $driver = $bound;
                 }
-            } catch (\Throwable) {
-                // Configuration is optional; retain the requested driver.
             }
         }
 
-        return $resolved;
+        if (!class_exists($driver) || !is_a($driver, CacheDriverInterface::class, true)) {
+            throw new \InvalidArgumentException(sprintf('Unknown cache driver [%s].', $driver));
+        }
+
+        return $driver;
     }
 }

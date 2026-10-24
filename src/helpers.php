@@ -10,16 +10,45 @@ if (function_exists('helper')) {
     helper('cache');
 }
 
-if (function_exists('alias')) {
+if (function_exists('alias') && alias('cache') === null) {
     alias('cache', CacheDriverInterface::class);
 }
 
 if (function_exists('app')) {
-    app('cache', [
-        Memory::class,
-        Fs::class,
-        MemCached::class,
-    ]);
+    app()->set('cache.mem', static fn (): string => Memory::class);
+    app()->set('cache.memory', static fn (): string => Memory::class);
+    app()->set('cache.fs', static fn (): string => Fs::class);
+    app()->set('cache.memc', static fn (): string => MemCached::class);
+    app()->set('cache.memcached', static fn (): string => MemCached::class);
+
+    $cacheDefaults = static function (): array {
+        $driver = Memory::class;
+        $namespace = 'default';
+
+        if (function_exists('config')) {
+            try {
+                $configuredDriver = config('cache.default');
+                if (is_string($configuredDriver) && trim($configuredDriver) !== '') {
+                    $driver = $configuredDriver;
+                }
+
+                $configuredNamespace = config('cache.namespace');
+                if (is_string($configuredNamespace) && trim($configuredNamespace) !== '') {
+                    $namespace = $configuredNamespace;
+                }
+            } catch (\Throwable) {
+                // Configuration is optional; keep the built-in defaults.
+            }
+        }
+
+        return [$namespace, $driver];
+    };
+
+    app()->set(
+        CacheDriverInterface::class,
+        static fn (): CacheDriverInterface => Cache::make(...$cacheDefaults())->driver(),
+    );
+    app()->set('cache', static fn (): Cache => Cache::make(...$cacheDefaults()));
 }
 
 if (!function_exists('cache') && function_exists('helper_add') && helper_add('cache')) {

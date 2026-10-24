@@ -1,6 +1,7 @@
 <?php
 
 use Strukt\Cache\Cache;
+use Strukt\Cache\Driver\AbstractArrayDriver;
 use Strukt\Cache\Driver\Fs;
 use Strukt\Cache\Driver\Memory;
 use Strukt\Contract\CacheDriverInterface;
@@ -68,3 +69,67 @@ test('filesystem cache names reject path traversal', function (): void {
     expect(fn (): Fs => new Fs('../unsafe', sys_get_temp_dir()))
         ->toThrow(InvalidArgumentException::class);
 });
+
+test('unknown cache drivers are rejected', function (): void {
+    expect(fn (): Cache => new Cache('settings', 'definitely-not-a-driver'))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+test('custom drivers resolve from app() container bindings', function (): void {
+    if (!function_exists('app')) {
+        $this->markTestSkipped('The app() container is unavailable.');
+    }
+
+    app()->set('cache.stub', static fn (): string => StubCacheDriver::class);
+
+    $cache = Cache::make('settings', 'stub');
+
+    expect($cache->driver())->toBeInstanceOf(StubCacheDriver::class)
+        ->and($cache->put('a', 1))->toBe($cache)
+        ->and($cache->get('a'))->toBe(1);
+});
+
+test('the app container resolves a default cache driver and facade', function (): void {
+    if (!function_exists('app')) {
+        $this->markTestSkipped('The app() container is unavailable.');
+    }
+
+    expect(app(CacheDriverInterface::class))->toBeInstanceOf(Memory::class)
+        ->and(app('cache'))->toBeInstanceOf(Cache::class)
+        ->and(app('cache')->driver())->toBeInstanceOf(CacheDriverInterface::class);
+});
+
+test('the default cache binding honors config(cache.default) and config(cache.namespace)', function (): void {
+    if (!function_exists('app') || !function_exists('config')) {
+        $this->markTestSkipped('The app() container and config() helper are required.');
+    }
+
+    config('cache.default', StubCacheDriver::class);
+    config('cache.namespace', 'configured');
+
+    try {
+        require __DIR__ . '/../../src/helpers.php';
+
+        $driver = app(CacheDriverInterface::class);
+
+        expect($driver)->toBeInstanceOf(StubCacheDriver::class)
+            ->and($driver->name())->toBe('configured')
+            ->and(app('cache'))->toBeInstanceOf(Cache::class);
+    } finally {
+        config('cache.default', Memory::class);
+        config('cache.namespace', 'default');
+        require __DIR__ . '/../../src/helpers.php';
+    }
+});
+
+final class StubCacheDriver extends AbstractArrayDriver
+{
+    public function save(): void
+    {
+    }
+
+    public function name(): string
+    {
+        return $this->name;
+    }
+}
