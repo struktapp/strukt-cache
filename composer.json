@@ -5,9 +5,9 @@
     "license": "MIT",
     "require": {
         "php": ">=8.2",
-        "strukt/base": "dev-main",
-        "strukt/commons": "dev-main",
-        "strukt/fs": "dev-main"
+        "strukt/base": "v1.0.0",
+        "strukt/commons": "v1.1.0",
+        "strukt/fs": "v2.0.0"
     },
     "require-dev": {
         "pestphp/pest": "^4.0"
@@ -25,32 +25,6 @@
             "Tests\\": "tests/"
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../base",
-            "options": {
-                "symlink": false,
-                "versions": { "strukt/base": "dev-main" }
-            }
-        },
-        {
-            "type": "path",
-            "url": "../commons",
-            "options": {
-                "symlink": false,
-                "versions": { "strukt/commons": "dev-main" }
-            }
-        },
-        {
-            "type": "path",
-            "url": "../fs",
-            "options": {
-                "symlink": false,
-                "versions": { "strukt/fs": "dev-main" }
-            }
-        }
-    ],
     "scripts": {
         "test": "pest"
     },
@@ -67,5 +41,6 @@
             "name": "pitsolu",
             "email": "pitsolu@gmail.com"
         }
-    ]
+    ],
+    "version": "1.0.0"
 }
