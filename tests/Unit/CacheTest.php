@@ -99,12 +99,13 @@ test('the app container resolves a default cache driver and facade', function ()
         ->and(app('cache')->driver())->toBeInstanceOf(CacheDriverInterface::class);
 });
 
-test('the default cache binding honors config(cache.default) and config(cache.namespace)', function (): void {
+test('the default cache binding honors config(cache.driver) and config(cache.namespace)', function (): void {
     if (!function_exists('app') || !function_exists('config')) {
         $this->markTestSkipped('The app() container and config() helper are required.');
     }
 
-    config('cache.default', StubCacheDriver::class);
+    config('cache.driver', StubCacheDriver::class);
+    config('cache.default', Fs::class);
     config('cache.namespace', 'configured');
 
     try {
@@ -114,11 +115,63 @@ test('the default cache binding honors config(cache.default) and config(cache.na
 
         expect($driver)->toBeInstanceOf(StubCacheDriver::class)
             ->and($driver->name())->toBe('configured')
-            ->and(app('cache'))->toBeInstanceOf(Cache::class);
+            ->and(cache('configured'))->toBeInstanceOf(Cache::class)
+            ->and(cache('configured')->driver())->toBeInstanceOf(StubCacheDriver::class);
     } finally {
+        config('cache.driver', Memory::class);
         config('cache.default', Memory::class);
         config('cache.namespace', 'default');
+    }
+});
+
+test('config(cache.default) remains a fallback when cache.driver is absent', function (): void {
+    if (!function_exists('app') || !function_exists('config')) {
+        $this->markTestSkipped('The app() container and config() helper are required.');
+    }
+
+    config('cache.driver', '');
+    config('cache.default', StubCacheDriver::class);
+
+    try {
         require __DIR__ . '/../../src/helpers.php';
+
+        expect(app(CacheDriverInterface::class))->toBeInstanceOf(StubCacheDriver::class)
+            ->and(cache('legacy')->driver())->toBeInstanceOf(StubCacheDriver::class);
+    } finally {
+        config('cache.driver', Memory::class);
+        config('cache.default', Memory::class);
+    }
+});
+
+test('an explicit helper driver overrides the configured driver', function (): void {
+    if (!function_exists('config')) {
+        $this->markTestSkipped('The config() helper is required.');
+    }
+
+    config('cache.driver', StubCacheDriver::class);
+
+    try {
+        expect(cache('explicit', null, Memory::class)->driver())->toBeInstanceOf(Memory::class);
+    } finally {
+        config('cache.driver', Memory::class);
+    }
+});
+
+test('cache.disable forces Memory before resolving the configured driver', function (): void {
+    if (!function_exists('config')) {
+        $this->markTestSkipped('The config() helper is required.');
+    }
+
+    config('cache.driver', 'definitely-not-a-driver');
+    config('cache.disable', true);
+
+    try {
+        $cache = new Cache('disabled', 'definitely-not-a-driver');
+
+        expect($cache->driver())->toBeInstanceOf(Memory::class);
+    } finally {
+        config('cache.disable', false);
+        config('cache.driver', Memory::class);
     }
 });
 

@@ -135,18 +135,7 @@ class Cache
      */
     private function makeDriver(string $filename, string $driver): CacheDriverInterface
     {
-        $class = $this->resolveDriver($driver);
-
-        if (function_exists('config')) {
-            try {
-                $disabled = config('cache.disable');
-                if ($disabled === true || $disabled === 'true' || $disabled === 1 || $disabled === '1') {
-                    $class = Memory::class;
-                }
-            } catch (\Throwable) {
-                // Configuration is optional; retain the requested driver.
-            }
-        }
+        $class = Config::disabled() ? Memory::class : $this->resolveDriver($driver);
 
         if (function_exists('app')) {
             $constructor = (new \ReflectionClass($class))->getConstructor();

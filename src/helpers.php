@@ -1,6 +1,7 @@
 <?php
 
 use Strukt\Cache\Cache;
+use Strukt\Cache\Config;
 use Strukt\Cache\Driver\Fs;
 use Strukt\Cache\Driver\MemCached;
 use Strukt\Cache\Driver\Memory;
@@ -21,28 +22,7 @@ if (function_exists('app')) {
     app()->set('cache.memc', static fn (): string => MemCached::class);
     app()->set('cache.memcached', static fn (): string => MemCached::class);
 
-    $cacheDefaults = static function (): array {
-        $driver = Memory::class;
-        $namespace = 'default';
-
-        if (function_exists('config')) {
-            try {
-                $configuredDriver = config('cache.default');
-                if (is_string($configuredDriver) && trim($configuredDriver) !== '') {
-                    $driver = $configuredDriver;
-                }
-
-                $configuredNamespace = config('cache.namespace');
-                if (is_string($configuredNamespace) && trim($configuredNamespace) !== '') {
-                    $namespace = $configuredNamespace;
-                }
-            } catch (\Throwable) {
-                // Configuration is optional; keep the built-in defaults.
-            }
-        }
-
-        return [$namespace, $driver];
-    };
+    $cacheDefaults = static fn (): array => [Config::namespace(), Config::driver()];
 
     app()->set(
         CacheDriverInterface::class,
@@ -56,21 +36,21 @@ if (!function_exists('cache') && function_exists('helper_add') && helper_add('ca
      * Reads, writes, or opens a named cache namespace.
      *
      * A dotted name such as namespace.key reads or writes one key directly.
-     * A name without a dot returns a Cache facade. The helper defaults to the
-     * in-memory driver to preserve the legacy helper behavior.
+     * A name without a dot returns a Cache facade. Without an explicit driver
+     * the helper uses `cache.driver`, falling back to the in-memory driver.
      *
      * @param string $filename Namespace, or namespace and key separated by a dot.
      * @param mixed $value Optional value to store; null reads instead.
-     * @param string $driver Driver class or alias.
+     * @param string|null $driver Driver class or alias, or the configured driver.
      * @return mixed Cache facade, stored value, or the facade after a write.
      *
      * @throws \InvalidArgumentException When the namespace or driver is invalid.
      * @throws \RuntimeException When a persistent driver cannot initialize.
      */
-    function cache(string $filename, mixed $value = null, string $driver = Memory::class): mixed
+    function cache(string $filename, mixed $value = null, ?string $driver = null): mixed
     {
         $parts = explode('.', trim($filename), 2);
-        $cache = new Cache($parts[0], $driver);
+        $cache = new Cache($parts[0], $driver ?? Config::driver());
 
         if (!array_key_exists(1, $parts)) {
             return $cache;
